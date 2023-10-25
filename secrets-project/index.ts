@@ -1,5 +1,5 @@
-import * as pulumi from "@pulumi/pulumi";
 import * as gcp from "@pulumi/gcp";
+import * as random from "@pulumi/random";
 
 const secret = new gcp.secretmanager.Secret("secret", {
     replication: {
@@ -8,9 +8,13 @@ const secret = new gcp.secretmanager.Secret("secret", {
     secretId: "pk-secret"
 })
 
+const secretData = new random.RandomPassword("pw", {
+    length: 20
+})
+
 const secretVersion = new gcp.secretmanager.SecretVersion("secretversion", {
     secret: secret.id,
-    secretData: "mysecret"
+    secretData: secretData.result
 });
 
-export const secretValue = secretVersion.secretData;
+export const secretId = secret.id

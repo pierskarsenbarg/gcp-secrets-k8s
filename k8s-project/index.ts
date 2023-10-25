@@ -8,10 +8,16 @@ export = async () => {
 
     const stackreference = new pulumi.StackReference("pierskarsenbarg/secrets-project/dev");
 
-    const secretValue = await getValue<string>(await stackreference.getOutputDetails("secretValue"), "")
+    const secretId = await getValue<string>(await stackreference.getOutputDetails("secretId"), "");
+
+    const gcpSecret = gcp.secretmanager.getSecretVersionOutput({
+        secret: secretId
+    });
 
     const cluster = new gcp.container.Cluster("pk-cluster", {
         initialNodeCount: 1,
+        removeDefaultNodePool: true,
+
     });
 
 
@@ -19,21 +25,23 @@ export = async () => {
 
     const provider = new k8s.Provider("provider", {
         kubeconfig: kubeconfig
-    })
+    }, {dependsOn: cluster})
 
-    const namespace = new k8s.core.v1.Namespace("secretsnamespace", {}, {provider});
+    const namespace = new k8s.core.v1.Namespace("secretsnamespace", {}, {provider, dependsOn: [cluster]});
 
     const secret = new k8s.core.v1.Secret("mysecret", {
         metadata: {
             namespace: namespace.metadata.name
         },
         stringData: {
-            "mygcpsecret": secretValue
+            "mygcpsecret": gcpSecret.secretData
         }
     }, {provider: provider});
 
     return {
-        kubeconfig
+        kubeconfig: kubeconfig,
+        namespace: namespace.metadata.name,
+        secretname: secret.metadata.name
     }
 
 }
